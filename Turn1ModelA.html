@@ -1,164 +1,130 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>THEMIS & ARTEMIS Mission Visualization</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.3.0/d3.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@observablehq/plot@0.6"></script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"
-    />
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        background: #000;
-        color: #fff;
-        overflow: hidden;
-      }
-      #visualization {
-        width: 100vw;
-        height: 100vh;
-        position: relative;
-      }
-      .orbit {
-        stroke: #fff;
-        fill: none;
-        stroke-width: 1;
-      }
-      .probe {
-        fill: #ffd700;
-        stroke: #000;
-        stroke-width: 0.5;
-      }
-      .info-box {
-        position: absolute;
-        background: rgba(0, 0, 0, 0.8);
-        padding: 10px;
-        border-radius: 5px;
-        display: none;
-      }
-      .phase-button {
-        background-color: #4caf50; /* Green */
-        border: none;
-        color: white;
-        padding: 15px 32px;
-        text-align: center;
-        text-decoration: none;
-        display: inline-block;
-        font-size: 16px;
-        margin: 4px 2px;
-        cursor: pointer;
-      }
-    </style>
-  </head>
-  <body>
-    <div id="visualization"></div>
-    <div id="info" class="info-box"></div>
-    <div style="position: absolute; bottom: 10px; left: 10px">
-      <button class="phase-button" onclick="showPhase('Tail')">
-        Tail Phase
-      </button>
-      <button class="phase-button" onclick="showPhase('Dawn')">
-        Dawn Phase
-      </button>
-      <button class="phase-button" onclick="showPhase('Dayside')">
-        Dayside Phase
-      </button>
-      <button class="phase-button" onclick="showPhase('Dusk')">
-        Dusk Phase
-      </button>
+<head>
+<meta charset="UTF-8">
+<title>Quantum Grid Navigator</title>
+<style>
+    #game-container { width: 300px; margin: auto; text-align: center; }
+    #grid { display: grid; grid-template-columns: repeat(10, 30px); gap: 1px; }
+    .cell { width: 30px; height: 30px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; }
+    .menu { margin-bottom: 20px; }
+    #score, #geiger { font-size: 18px; margin: 10px 0; }
+</style>
+</head>
+<body>
+<div id="game-container">
+    <div class="menu">
+        <select id="difficulty">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+        </select>
+        <button onclick="startGame()">Start Game</button>
     </div>
+    <div id="grid"></div>
+    <div id="score">Score: 0</div>
+    <div id="geiger">Geiger Reading: 0</div>
+</div>
+<script>
+    let grid = [], currentPos = {x: 0, y: 0}, score = 0, fluxDisruptors = 3, quantumCores = 0;
 
-    <script>
-      const width = window.innerWidth,
-        height = window.innerHeight;
-      const svg = d3
-        .select('#visualization')
-        .append('svg')
-        .attr('width', width)
-        .attr('height', height);
-
-      const phases = {
-        Tail: { apogee: 12, sector: 'nightside', mmsPosition: 'dawn' },
-        Dawn: { apogee: 12, sector: 'dawnside', mmsPosition: 'dayside' },
-        Dayside: { apogee: 12, sector: 'dayside', mmsPosition: 'dusk' },
-        Dusk: { apogee: 13, sector: 'duskside', mmsPosition: 'tail' },
-      };
-
-      function drawOrbits(phase) {
-        svg.selectAll('*').remove();
-        const phaseData = phases[phase];
-        const scale = d3
-          .scaleLinear()
-          .domain([0, 30])
-          .range([0, height / 2 - 50]);
-        const center = { x: width / 2, y: height / 2 };
-
-        // Earth
-        svg
-          .append('circle')
-          .attr('cx', center.x)
-          .attr('cy', center.y)
-          .attr('r', 20)
-          .attr('fill', 'blue');
-
-        // Draw THEMIS orbits
-        for (let i = 0; i < 3; i++) {
-          const r = scale(phaseData.apogee + i * 0.5);
-          svg
-            .append('ellipse')
-            .attr('class', 'orbit')
-            .attr('cx', center.x)
-            .attr('cy', center.y)
-            .attr('rx', r)
-            .attr('ry', r * 0.5)
-            .attr('transform', `rotate(${i * 30}, ${center.x}, ${center.y})`);
-
-          // Probe position
-          svg
-            .append('circle')
-            .attr('class', 'probe')
-            .attr('cx', center.x + r * Math.cos((i * Math.PI) / 6))
-            .attr('cy', center.y + r * 0.5 * Math.sin((i * Math.PI) / 6))
-            .attr('r', 5)
-            .on('mouseover', function () {
-              showInfo(phase, i);
-            })
-            .on('mouseout', hideInfo);
+    function createGrid() {
+        const size = 10;
+        for(let i = 0; i < size; i++) {
+            grid[i] = [];
+            for(let j = 0; j < size; j++) {
+                grid[i][j] = {type: 'neutral'};
+            }
         }
+    }
 
-        // MMS position indicator
-        svg
-          .append('text')
-          .attr('x', width - 100)
-          .attr('y', 50)
-          .text(`MMS: ${phaseData.mmsPosition} sector`)
-          .attr('fill', 'white');
-      }
+    function placeItems(difficulty) {
+        let mines = 5, cores = 3;
+        if (difficulty === 'easy') { mines = 3; cores = 2; }
+        if (difficulty === 'hard') { mines = 8; cores = 4; }
+        // Random placement logic for mines and cores
+        for(let i = 0; i < mines + cores; i++) {
+            let x, y, type = i < mines ? 'mine' : 'core';
+            do {
+                x = Math.floor(Math.random() * 10);
+                y = Math.floor(Math.random() * 10);
+            } while(grid[x][y].type !== 'neutral');
+            grid[x][y].type = type;
+        }
+    }
 
-      function showInfo(phase, probeIndex) {
-        d3.select('#info')
-          .style('display', 'block')
-          .html(
-            `Phase: ${phase}<br>Probe ${probeIndex + 3}: Studying ${
-              phaseData.sector
-            } interactions`
-          )
-          .style('left', d3.event.pageX + 10 + 'px')
-          .style('top', d3.event.pageY - 28 + 'px');
-      }
+    function renderGrid() {
+        const gridDiv = document.getElementById('grid');
+        gridDiv.innerHTML = '';
+        for(let i = 0; i < 10; i++) {
+            for(let j = 0; j < 10; j++) {
+                let cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.textContent = grid[i][j].type === 'neutral' ? '' : 
+                                   (grid[i][j].type === 'mine' ? '🔺' : '⚛️');
+                if (i === currentPos.x && j === currentPos.y) cell.textContent = '👤';
+                gridDiv.appendChild(cell);
+            }
+        }
+        updateGeigerCounter();
+    }
 
-      function hideInfo() {
-        d3.select('#info').style('display', 'none');
-      }
+    function updateGeigerCounter() {
+        let count = 0;
+        for (let i = -1; i <= 1; i++) {
+            for (let j = -1; j <= 1; j++) {
+                if (currentPos.x + i >= 0 && currentPos.x + i < 10 && 
+                    currentPos.y + j >= 0 && currentPos.y + j < 10) {
+                    if (grid[currentPos.x + i][currentPos.y + j].type === 'mine') count++;
+                }
+            }
+        }
+        document.getElementById('geiger').textContent = `Geiger Reading: ${count}`;
+    }
 
-      function showPhase(phase) {
-        drawOrbits(phase);
-      }
+    function move(direction) {
+        let newPos = { ...currentPos };
+        switch(direction) {
+            case 'up': newPos.x--; break;
+            case 'down': newPos.x++; break;
+            case 'left': newPos.y--; break;
+            case 'right': newPos.y++; break;
+        }
+        if(newPos.x < 0 || newPos.y < 0 || newPos.x >= 10 || newPos.y >= 10) return;
+        currentPos = newPos;
+        checkPosition();
+        renderGrid();
+    }
 
-      // Initial draw
-      drawOrbits('Tail');
-    </script>
-  </body>
+    function checkPosition() {
+        let cell = grid[currentPos.x][currentPos.y];
+        if (cell.type === 'mine') {
+            alert('Game Over! You hit a mine.');
+            startGame();
+        } else if (cell.type === 'core') {
+            score += 10;
+            quantumCores--;
+            cell.type = 'neutral';
+            if (quantumCores === 0) {
+                alert('You Win! All cores collected.');
+                startGame();
+            }
+        }
+        document.getElementById('score').textContent = `Score: ${score}`;
+    }
+
+    function startGame() {
+        let difficulty = document.getElementById('difficulty').value;
+        createGrid();
+        placeItems(difficulty);
+        currentPos = {x: 0, y: 0};
+        score = 0;
+        quantumCores = difficulty === 'easy' ? 2 : (difficulty === 'medium' ? 3 : 4);
+        renderGrid();
+    }
+
+    window.onload = startGame;
+    // Add key listeners for movement if desired
+</script>
+</body>
 </html>

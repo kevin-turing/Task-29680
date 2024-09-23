@@ -1,1 +1,144 @@
-T1MB
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quantum Grid Navigator</title>
+<style>
+    body { font-family: 'Courier New', monospace; background: #000; color: #0f0; }
+    #gameArea { width: 300px; margin: 20px auto; }
+    #grid { display: grid; grid-template-columns: repeat(10, 30px); gap: 2px; }
+    .cell { width: 30px; height: 30px; line-height: 30px; text-align: center; border: 1px solid #0f0; }
+    #menu { text-align: center; margin-bottom: 20px; }
+    #status { margin-top: 10px; text-align: center; }
+    button { background: #0f0; color: #000; border: none; padding: 5px 10px; cursor: pointer; }
+    button:hover { background: #0a0; }
+</style>
+</head>
+<body>
+<div id="gameArea">
+    <div id="menu">
+        <button onclick="startGame('easy')">Easy</button>
+        <button onclick="startGame('medium')">Medium</button>
+        <button onclick="startGame('hard')">Hard</button>
+    </div>
+    <div id="status"></div>
+    <div id="grid"></div>
+</div>
+
+<script>
+let gridSize = 10, player = {x: 0, y: 0}, score = 0, coresLeft, fluxDisruptors, gameActive = false;
+let grid = [];
+
+function startGame(difficulty) {
+    initializeGame(difficulty);
+    renderGrid();
+    document.getElementById('status').innerText = `Score: ${score} | Cores: ${coresLeft} | Flux: ${fluxDisruptors}`;
+}
+
+function initializeGame(difficulty) {
+    const difficultySettings = {
+        'easy': {cores: 5, mines: 10, flux: 5},
+        'medium': {cores: 10, mines: 20, flux: 3},
+        'hard': {cores: 15, mines: 30, flux: 1}
+    };
+    let settings = difficultySettings[difficulty];
+    grid = Array(gridSize).fill().map(() => Array(gridSize).fill(0));
+    placeItems('⚛️', settings.cores);
+    placeItems('⚡', settings.mines);
+    placeItems('❄️', settings.mines);
+    player = {x: 0, y: 0};
+    score = 0;
+    coresLeft = settings.cores;
+    fluxDisruptors = settings.flux;
+    gameActive = true;
+}
+
+function placeItems(symbol, count) {
+    for(let i = 0; i < count; i++) {
+        let x, y;
+        do {
+            x = Math.floor(Math.random() * gridSize);
+            y = Math.floor(Math.random() * gridSize);
+        } while(grid[y][x] !== 0);
+        grid[y][x] = symbol;
+    }
+}
+
+function renderGrid() {
+    let gridHTML = '';
+    for(let y = 0; y < gridSize; y++) {
+        for(let x = 0; x < gridSize; x++) {
+            let cell = grid[y][x] === 0 ? (x === player.x && y === player.y ? '👣' : '⬜') : grid[y][x];
+            gridHTML += `<div class="cell" onclick="movePlayer(${x}, ${y})">${cell}</div>`;
+        }
+    }
+    document.getElementById('grid').innerHTML = gridHTML;
+    updateGeigerCounter();
+}
+
+function movePlayer(x, y) {
+    if (!gameActive || x < 0 || y < 0 || x >= gridSize || y >= gridSize) return;
+    
+    let item = grid[y][x];
+    if (item === '⚛️') {
+        score += 10;
+        coresLeft--;
+    } else if (item === '⚡') {
+        if (confirm("You've found a positive charge! Do you want to identify it for bonus points?")) {
+            score += 20;
+        } else {
+            score -= 50;
+            gameActive = false;
+        }
+    } else if (item === '❄️' && fluxDisruptors > 0) {
+        grid[y][x] = '🔄';
+        fluxDisruptors--;
+        updateAdjacentCharges(x, y, -1);
+    }
+
+    grid[player.y][player.x] = 0;
+    player.x = x;
+    player.y = y;
+    renderGrid();
+
+    if (coresLeft === 0 || !gameActive) {
+        endGame();
+    }
+}
+
+function updateGeigerCounter() {
+    let charge = calculateCharge(player.x, player.y);
+    document.getElementById('status').innerText = `Score: ${score} | Cores: ${coresLeft} | Flux: ${fluxDisruptors} | Charge: ${charge}`;
+}
+
+function calculateCharge(x, y) {
+    let charge = 0;
+    for(let dy = -1; dy <= 1; dy++) {
+        for(let dx = -1; dx <= 1; dx++) {
+            if (x + dx >= 0 && x + dx < gridSize && y + dy >= 0 && y + dy < gridSize) {
+                if(grid[y + dy][x + dx] === '⚡') charge++;
+                if(grid[y + dy][x + dx] === '❄️') charge--;
+            }
+        }
+    }
+    return charge;
+}
+
+function updateAdjacentCharges(x, y, change) {
+    for(let dy = -1; dy <= 1; dy++) {
+        for(let dx = -1; dx <= 1; dx++) {
+            if (x + dx >= 0 && x + dx < gridSize && y + dy >= 0 && y + dy < gridSize) {
+                updateGeigerCounter();
+            }
+        }
+    }
+}
+
+function endGame() {
+    alert(`Game Over! Your score: ${score}`);
+    gameActive = false;
+}
+</script>
+</body>
+</html>

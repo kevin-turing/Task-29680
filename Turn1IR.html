@@ -1,1 +1,255 @@
-T1IR
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Quantum Grid Explorer</title>
+<style>
+    body { font-family: 'Courier New', monospace; background: #000000; color: #39ff14; margin: 0; padding: 20px; }
+    #game { max-width: 500px; margin: 0 auto; text-align: center; }
+    #grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; margin-top: 20px; }
+    .cell { width: 100%; aspect-ratio: 1/1; border: 1px solid #39ff14; background: #000000; color: #39ff14; font-size: 24px; display: flex; justify-content: center; align-items: center; position: relative; cursor: pointer; }
+    .cell:hover { background: #003300; }
+    .cell.revealed { background: #001100; }
+    .cell.player::after { content: '👤'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 20px; }
+    #info { margin-top: 20px; font-size: 18px; }
+    button { background: #000000; color: #39ff14; border: 1px solid #39ff14; padding: 10px 20px; margin: 5px; cursor: pointer; font-size: 16px; }
+    button:hover { background: #003300; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #tutorial { background: rgba(0, 0, 0, 0.9); position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+    #tutorial-content { background: #000000; border: 2px solid #39ff14; padding: 20px; border-radius: 10px; max-width: 80%; }
+    h1, h2 { color: #39ff14; text-shadow: 0 0 5px #39ff14; }
+</style>
+</head>
+<body>
+<div id="game">
+    <h1>Quantum Grid Explorer</h1>
+    <div id="menu">
+        <h2>Select Difficulty</h2>
+        <button onclick="startGame('easy')">Easy</button>
+        <button onclick="startGame('medium')">Medium</button>
+        <button onclick="startGame('hard')">Hard</button>
+    </div>
+    <div id="grid"></div>
+    <div id="info"></div>
+    <button id="fluxButton" onclick="useFluxDisruptor()" style="display:none;">Use Flux Disruptor</button>
+</div>
+<div id="tutorial" style="display:none;">
+    <div id="tutorial-content">
+        <h2>Welcome to Quantum Grid Explorer!</h2>
+        <p>🔹 Navigate the 10x10 grid to find and collect quantum cores (⚛️).</p>
+        <p>🔹 Your Geiger counter shows the net charge of adjacent cells.</p>
+        <p>🔹 Identify positive charges (🔺) before stepping on them for bonus points.</p>
+        <p>🔹 Misidentification deducts points.</p>
+        <p>🔹 Use flux disruptors to neutralize negative charges (🔻).</p>
+        <p>🔹 Collect all cores to win, but be careful of positive charges!</p>
+        <p>🔹 Use arrow keys to move, 'I' to identify, and 'F' to use flux disruptor.</p>
+        <button onclick="closeTutorial()">Got it!</button>
+    </div>
+</div>
+
+<script>
+let grid = [], revealedGrid = [], player = {x: 0, y: 0}, score = 0, cores = 0, flux = 0, gameActive = false;
+
+const difficulties = {
+    easy: {cores: 3, positive: 5, negative: 5, flux: 3},
+    medium: {cores: 5, positive: 8, negative: 8, flux: 2},
+    hard: {cores: 7, positive: 12, negative: 12, flux: 1}
+};
+
+function startGame(difficulty) {
+    const s = difficulties[difficulty];
+    grid = Array(10).fill().map(() => Array(10).fill(''));
+    revealedGrid = Array(10).fill().map(() => Array(10).fill(false));
+    player = {x: 0, y: 0};
+    score = 0;
+    cores = s.cores;
+    flux = s.flux;
+    gameActive = true;
+
+    placeItems('⚛️', s.cores);
+    placeItems('🔺', s.positive);
+    placeItems('🔻', s.negative);
+
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('grid').style.display = 'grid';
+    document.getElementById('fluxButton').style.display = 'inline-block';
+    updateDisplay();
+    showTutorial();
+}
+
+function placeItems(symbol, count) {
+    for (let i = 0; i < count; i++) {
+        let x, y;
+        do {
+            x = Math.floor(Math.random() * 10);
+            y = Math.floor(Math.random() * 10);
+        } while (grid[y][x] !== '' || (x === player.x && y === player.y));
+        grid[y][x] = symbol;
+    }
+}
+
+function updateDisplay() {
+    const gridEl = document.getElementById('grid');
+    gridEl.innerHTML = '';
+    for (let y = 0; y < 10; y++) {
+        for (let x = 0; x < 10; x++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            if (revealedGrid[y][x]) {
+                cell.textContent = grid[y][x];
+                cell.classList.add('revealed');
+            }
+            if (x === player.x && y === player.y) {
+                cell.classList.add('player');
+            }
+            cell.onclick = () => movePlayer(x, y);
+            gridEl.appendChild(cell);
+        }
+    }
+    document.getElementById('info').innerHTML = 
+        `Score: ${score} | Cores Left: ${cores} | Flux: ${flux} | Net Charge: ${getNetCharge()}`;
+    document.getElementById('fluxButton').disabled = flux === 0;
+}
+
+function movePlayer(x, y) {
+    if (!gameActive || Math.abs(x - player.x) + Math.abs(y - player.y) !== 1) return;
+    
+    if (grid[y][x] === '🔺') {
+        endGame('You triggered a positive charge!');
+        return;
+    } else if (grid[y][x] === '⚛️') {
+        score += 10;
+        cores--;
+        showNotification('Quantum core collected! +10 points', 'success');
+    }
+    
+    revealedGrid[y][x] = true;
+    grid[y][x] = '';
+    player = {x, y};
+    
+    if (cores === 0) endGame('You collected all quantum cores!');
+    else updateDisplay();
+}
+
+function identifyCharge() {
+    const adjacentCells = [
+        {x: player.x - 1, y: player.y},
+        {x: player.x + 1, y: player.y},
+        {x: player.x, y: player.y - 1},
+        {x: player.x, y: player.y + 1}
+    ];
+
+    const validCells = adjacentCells.filter(cell => 
+        cell.x >= 0 && cell.x < 10 && cell.y >= 0 && cell.y < 10 && !revealedGrid[cell.y][cell.x]
+    );
+
+    if (validCells.length === 0) {
+        showNotification('No adjacent cells to identify!', 'warning');
+        return;
+    }
+
+    const cellToIdentify = validCells[Math.floor(Math.random() * validCells.length)];
+    revealedGrid[cellToIdentify.y][cellToIdentify.x] = true;
+
+    if (grid[cellToIdentify.y][cellToIdentify.x] === '🔺') {
+        score += 5;
+        showNotification('Correct identification! +5 points', 'success');
+    } else {
+        score -= 2;
+        showNotification('Misidentification! -2 points', 'error');
+    }
+
+    updateDisplay();
+}
+
+function getNetCharge() {
+    let charge = 0;
+    for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+            const x = player.x + dx, y = player.y + dy;
+            if (x >= 0 && x < 10 && y >= 0 && y < 10) {
+                charge += grid[y][x] === '🔺' ? 1 : (grid[y][x] === '🔻' ? -1 : 0);
+            }
+        }
+    }
+    return charge;
+}
+
+function useFluxDisruptor() {
+    if (flux > 0) {
+        flux--;
+        let neutralized = 0;
+        for (let dy = -1; dy <= 1; dy++) {
+            for (let dx = -1; dx <= 1; dx++) {
+                const x = player.x + dx, y = player.y + dy;
+                if (x >= 0 && x < 10 && y >= 0 && y < 10 && grid[y][x] === '🔻') {
+                    grid[y][x] = '';
+                    revealedGrid[y][x] = true;
+                    neutralized++;
+                }
+            }
+        }
+        showNotification(`Flux disruptor used! ${neutralized} negative charge(s) neutralized.`, 'info');
+        updateDisplay();
+    }
+}
+
+function endGame(message) {
+    gameActive = false;
+    revealedGrid = revealedGrid.map(row => row.fill(true));
+    updateDisplay();
+    showNotification(`${message} Final score: ${score}`, 'info', true);
+    document.getElementById('menu').style.display = 'block';
+    document.getElementById('fluxButton').style.display = 'none';
+}
+
+function showTutorial() {
+    document.getElementById('tutorial').style.display = 'flex';
+}
+
+function closeTutorial() {
+    document.getElementById('tutorial').style.display = 'none';
+}
+
+function showNotification(message, type, isEndGame = false) {
+    const notification = document.createElement('div');
+    notification.textContent = message;
+    notification.style.position = 'fixed';
+    notification.style.top = '20px';
+    notification.style.left = '50%';
+    notification.style.transform = 'translateX(-50%)';
+    notification.style.padding = '10px 20px';
+    notification.style.borderRadius = '5px';
+    notification.style.color = '#000000';
+    notification.style.zIndex = '1000';
+    notification.style.backgroundColor = '#39ff14';
+    notification.style.boxShadow = '0 0 10px #39ff14';
+
+    document.body.appendChild(notification);
+
+    if (!isEndGame) {
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 3000);
+    }
+}
+
+document.addEventListener('keydown', (e) => {
+    if (!gameActive) return;
+    let newX = player.x, newY = player.y;
+    switch(e.key) {
+        case 'ArrowUp': newY--; break;
+        case 'ArrowDown': newY++; break;
+        case 'ArrowLeft': newX--; break;
+        case 'ArrowRight': newX++; break;
+        case 'i': case 'I': identifyCharge(); return;
+        case 'f': case 'F': useFluxDisruptor(); return;
+        default: return;
+    }
+    if (newX >= 0 && newX < 10 && newY >= 0 && newY < 10) {
+        movePlayer(newX, newY);
+    }
+});
+</script>
+</body>
+</html>
