@@ -198,7 +198,7 @@ function endGame(message) {
     gameActive = false;
     revealedGrid = revealedGrid.map(row => row.fill(true));
     updateDisplay();
-    showNotification(`${message} Final score: ${score}`, 'info', true);
+    showNotification(`${message} Final score: ${score}`, 'info');
     document.getElementById('menu').style.display = 'block';
     document.getElementById('fluxButton').style.display = 'none';
 }
@@ -211,7 +211,7 @@ function closeTutorial() {
     document.getElementById('tutorial').style.display = 'none';
 }
 
-function showNotification(message, type, isEndGame = false) {
+function showNotification(message, type) {
     const notification = document.createElement('div');
     notification.textContent = message;
     notification.style.position = 'fixed';
@@ -227,11 +227,9 @@ function showNotification(message, type, isEndGame = false) {
 
     document.body.appendChild(notification);
 
-    if (!isEndGame) {
-        setTimeout(() => {
-            document.body.removeChild(notification);
-        }, 3000);
-    }
+    setTimeout(() => {
+        document.body.removeChild(notification);
+    }, 3000);
 }
 
 document.addEventListener('keydown', (e) => {
